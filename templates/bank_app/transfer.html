@@ -1,0 +1,13 @@
+{% extends 'bank_app/base.html' %}
+
+{% block content %}
+    <div class="container">
+        <h2>Transfer Funds</h2>
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit">Transfer</button>
+        </form>
+        <a href="{% url 'account_detail' %}">Back to Account</a>
+    </div>
+{% endblock %}

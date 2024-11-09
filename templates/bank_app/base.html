@@ -1,0 +1,46 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bank App</title>
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+</head>
+<body>
+    <!-- Banner -->
+    <header class="banner">
+        <div class="app-name">Bank App</div>
+        <div class="nav-links">
+            {% if user.is_authenticated %}
+                <span>Welcome, {{ user.first_name }} {{ user.last_name }}</span>
+                <a href="{% url 'account_detail' %}">Account</a>
+                <a href="{% url 'transfer' %}">Transfer</a>
+                <a href="{% url 'logout' %}">Logout</a>
+            {% else %}
+                <a href="{% url 'register' %}">Register</a>
+                <a href="{% url 'login' %}">Login</a>
+            {% endif %}
+        </div>
+    </header>
+    
+    {% if messages %}
+        <script>
+            {% for message in messages %}
+                Swal.fire({
+                    title: 'Success!',
+                    text: '{{ message }}',
+                    icon: 'success',
+                    confirmButtonText: 'OK'
+                });
+            {% endfor %}
+        </script>
+    {% endif %}
+    
+    <!-- Main Content -->
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>
