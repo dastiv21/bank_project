@@ -228,6 +228,7 @@ class GitHubWebhookView(APIView):
         payload_data = request.data
 
         # Only process push events
+        print(payload_data)
         if payload_data.get("event") == "push":
             commits = payload_data.get("commits", [])
 
