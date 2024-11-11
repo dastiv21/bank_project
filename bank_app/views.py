@@ -245,7 +245,12 @@ class GitHubWebhookView(APIView):
 
     @staticmethod
     def is_valid_signature(payload, signature, secret):
-        # Compute HMAC hex digest
+        # Ensure payload is in bytes
+        if isinstance(payload, str):
+            payload = payload.encode()
+
+        # Compute HMAC hex digest with SHA-1
         hash_hex = hmac.new(secret, payload, hashlib.sha1).hexdigest()
-        # Compare with the GitHub signature
+
+        # Compare with the GitHub signature in a timing-safe way
         return hmac.compare_digest(f'sha1={hash_hex}', signature)
