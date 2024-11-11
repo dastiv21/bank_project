@@ -222,6 +222,7 @@ class GitHubWebhookView(APIView):
                             status=status.HTTP_403_FORBIDDEN)
 
         # Parse the payload
+        print(request.body)
         try:
             payload = json.loads(request.body)
         except json.JSONDecodeError:
