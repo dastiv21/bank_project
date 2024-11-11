@@ -346,25 +346,32 @@ class GitHubWebhookView(APIView):
         return hmac.compare_digest(f'sha1={hash_hex}', signature)
 
 
+import os
+from datetime import datetime
+
+
 def save_audit_log(audit_logs):
     """
-    Saves audit logs to a log file with the type of event and its details.
+    Saves audit logs to a logfile.
 
-    :param audit_logs: List of audit log dictionaries.
-    :return: A dictionary with a success message.
+    :param audit_logs: A list of dictionaries containing audit log data.
+    :return: A response message indicating success or failure.
     """
-    # Define the path for the log file
-    log_file_path = 'audit_log.txt'
+    # Define the log file path (ensure the directory exists)
+    log_file_path = './logfile.log'
+    os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
 
-    # Open the log file in append mode
-    with open(log_file_path, 'a') as log_file:
-        # Write each audit log to the file
-        for log in audit_logs:
-            log_entry = f"{log['type']} - Author: {log.get('author', 'N/A')}, " \
-                        f"State/Branch: {log.get('state', 'N/A')}/{log.get('branch', 'N/A')}, " \
-                        f"Timestamp: {log.get('update_time', 'N/A')}, " \
-                        f"Message: {log.get('message', 'N/A')}\n"
-            log_file.write(log_entry)
+    # Prepare the log message with a timestamp
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_messages = [f"{timestamp}: {log}" for log in audit_logs]
 
-    # Return a success message
-    return {"message": "Audit logs saved successfully"}
+    # Write the log messages to the file
+    try:
+        with open(log_file_path, 'a') as log_file:
+            for message in log_messages:
+                log_file.write(message + '\n')
+        return {"message": "Audit logs saved successfully to file"}
+    except IOError as e:
+        # Return an error message if the file operation fails
+        return {"message": f"Failed to save audit logs to file: {str(e)}",
+                "error": str(e)}
