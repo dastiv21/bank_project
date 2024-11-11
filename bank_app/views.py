@@ -223,11 +223,7 @@ class GitHubWebhookView(APIView):
 
         # Parse the payload
         print(request.body)
-        try:
-            payload = json.loads(request.body)
-        except json.JSONDecodeError:
-            return Response({"error": "Invalid JSON payload"},
-                            status=status.HTTP_400_BAD_REQUEST)
+        payload = request.data
 
         # Only process push events
         if payload.get("event") != "push":
