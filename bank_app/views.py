@@ -212,6 +212,7 @@ class GitHubWebhookView(APIView):
 
     def post(self, request, *args, **kwargs):
         # Secret token for validation
+        print("here")
         secret_token = settings.GITHUB_WEBHOOK_SECRET.encode()
 
         # Validate secret token
