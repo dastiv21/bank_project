@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import json
 
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
@@ -222,7 +223,7 @@ class GitHubWebhookView(APIView):
             return Response({"error": "Invalid secret token"}, status=status.HTTP_403_FORBIDDEN)
 
         # Parse the JSON payload
-        payload_data = request.data
+        payload_data = json.loads(request.body)
         file_updates = []
 
         if event_type == 'push':
