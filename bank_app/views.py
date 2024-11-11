@@ -210,8 +210,10 @@ class GitHubWebhookView(APIView):
     Webhook endpoint to handle GitHub push events for file updates.
     """
     def post(self, request, *args, **kwargs):
+        print("Inside")
         payload = request.data
         file_updates = []
+        print(payload)
 
         # Secret token for validation
         secret_token = settings.GITHUB_WEBHOOK_SECRET.encode()
