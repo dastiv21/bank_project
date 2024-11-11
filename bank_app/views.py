@@ -264,73 +264,107 @@ def verify_backup_code_view(request):
     #     # Compare with the GitHub signature
     #     return hmac.compare_digest(f'sha1={hash_hex}', signature)
 
-def save_audit_log(data, event_type="push"):
-    print("Save audit called")
-    # Modify the save_audit_log function to accept event_type
-    # and distinguish between commits and PRs in the audit logs
-    # Save the data to the database or log file with the event_type
-    # ...
-    pass
+
+import os
 
 import hmac
 import hashlib
+import json
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.conf import settings
 
+
 class GitHubWebhookView(APIView):
     """
-    Webhook endpoint to handle GitHub push and pull_request events.
+    Webhook endpoint to handle GitHub push events for file updates and
+    pull_request events for logging PR metadata.
     """
 
     def post(self, request, *args, **kwargs):
-        payload = request.body
-        event_type = request.headers.get('X-GitHub-Event')
+        payload = json.loads(
+            request.body)  # Use json.loads to parse the payload
+        audit_logs = []
 
         # Secret token for validation
         secret_token = settings.GITHUB_WEBHOOK_SECRET.encode()
 
         # Validate secret token
         signature = request.headers.get('X-Hub-Signature')
-        if not signature or not self.is_valid_signature(payload, signature, secret_token):
-            return Response({"error": "Invalid secret token"}, status=status.HTTP_403_FORBIDDEN)
+        if not signature or not self.is_valid_signature(request.body,
+                                                        signature,
+                                                        secret_token):
+            return Response({"error": "Invalid secret token"},
+                            status=status.HTTP_403_FORBIDDEN)
 
         # Parse the JSON payload
-        payload_data = request.data
+        event_type = request.headers.get('X-GitHub-Event')
 
         if event_type == 'push':
-            print("push")
-            pass
-            # ... (push event handling code remains the same)
+            commits = payload.get("commits", [])
+
+            for commit in commits:
+                for file_name in commit.get("modified", []):
+                    # Use the commit timestamp as the update time
+                    audit_logs.append({
+                        "type": "commit",
+                        "file_name": file_name,
+                        "update_time": commit.get("timestamp"),
+                        "author": commit.get("author", {}).get("name", ""),
+                        "message": commit.get("message", ""),
+                    })
+
+            # save audit log for file updates
+            audit_response = save_audit_log(audit_logs)
+            return Response(audit_response, status=status.HTTP_200_OK)
 
         elif event_type == 'pull_request':
-            # Extract pull_request data
-            action = payload_data.get("action")
-            pull_request = payload_data.get("pull_request")
-            pr_metadata = {
-                "author": pull_request.get("user", {}).get("login"),
-                "state": pull_request.get("state"),
-                "branch": pull_request.get("base", {}).get("ref")
-            }
-            print(pr_metadata)
+            pr_info = payload.get("pull_request", {})
 
-            # Save audit log for pull_request
-            audit_response = save_audit_log(pr_metadata, event_type)
+            # Log PR metadata
+            audit_logs.append({
+                "type": "pull_request",
+                "author": pr_info.get("user", {}).get("login", ""),
+                "state": pr_info.get("state", ""),
+                "branch": pr_info.get("base", {}).get("ref", ""),
+            })
+
+            # save audit log for PRs
+            audit_response = save_audit_log(audit_logs)
             return Response(audit_response, status=status.HTTP_200_OK)
 
         # If the event is not supported, return 400
-        return Response({"error": "Unsupported event type"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Unsupported event type"},
+                        status=status.HTTP_400_BAD_REQUEST)
 
     @staticmethod
     def is_valid_signature(payload, signature, secret):
         # Compute HMAC hex digest
         hash_hex = hmac.new(secret, payload, hashlib.sha1).hexdigest()
         # Compare with the GitHub signature
-        return hmac.c
+        return hmac.compare_digest(f'sha1={hash_hex}', signature)
 
-def save_audit_log(data, event_type):
-    # Modify this function to handle event_type and save accordingly
-    # For example, you could have different models for commits and pull_requests
-    # and save the data in the appropriate model based on event_type
-    pass
+
+def save_audit_log(audit_logs):
+    """
+    Saves audit logs to a log file with the type of event and its details.
+
+    :param audit_logs: List of audit log dictionaries.
+    :return: A dictionary with a success message.
+    """
+    # Define the path for the log file
+    log_file_path = 'audit_log.txt'
+
+    # Open the log file in append mode
+    with open(log_file_path, 'a') as log_file:
+        # Write each audit log to the file
+        for log in audit_logs:
+            log_entry = f"{log['type']} - Author: {log.get('author', 'N/A')}, " \
+                        f"State/Branch: {log.get('state', 'N/A')}/{log.get('branch', 'N/A')}, " \
+                        f"Timestamp: {log.get('update_time', 'N/A')}, " \
+                        f"Message: {log.get('message', 'N/A')}\n"
+            log_file.write(log_entry)
+
+    # Return a success message
+    return {"message": "Audit logs saved successfully"}
