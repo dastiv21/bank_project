@@ -349,29 +349,24 @@ class GitHubWebhookView(APIView):
 import os
 from datetime import datetime
 
-
 def save_audit_log(audit_logs):
-    """
-    Saves audit logs to a logfile.
+    # Define the log file path
+    log_file_path = './audit_logfile.log'
 
-    :param audit_logs: A list of dictionaries containing audit log data.
-    :return: A response message indicating success or failure.
-    """
-    # Define the log file path (ensure the directory exists)
-    log_file_path = './logfile.log'
+    # Ensure the directory exists
     os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
 
-    # Prepare the log message with a timestamp
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    log_messages = [f"{timestamp}: {log}" for log in audit_logs]
+    # Open the log file in append mode
+    with open(log_file_path, 'a') as log_file:
+        # Get the current timestamp
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    # Write the log messages to the file
-    try:
-        with open(log_file_path, 'a') as log_file:
-            for message in log_messages:
-                log_file.write(message + '\n')
-        return {"message": "Audit logs saved successfully to file"}
-    except IOError as e:
-        # Return an error message if the file operation fails
-        return {"message": f"Failed to save audit logs to file: {str(e)}",
-                "error": str(e)}
+        # Write each log entry to the file
+        for log_entry in audit_logs:
+            log_file.write(f"{current_time} - {log_entry['type']} - {log_entry.get('author', 'N/A')} - "
+                           f"{log_entry.get('state', 'N/A')} - {log_entry.get('branch', 'N/A')} - "
+                           f"{log_entry.get('file_name', 'N/A')} - {log_entry.get('update_time', 'N/A')} - "
+                           f"{log_entry.get('message', 'N/A')}\n")
+
+    # Return a success response
+    return {"message": "Audit logs saved successfully"}
