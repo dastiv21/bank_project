@@ -350,23 +350,23 @@ import os
 from datetime import datetime
 
 def save_audit_log(audit_logs):
-    # Define the log file path
-    log_file_path = './audit_logfile.log'
+    """
+    Saves the audit logs to a file with a timestamp.
 
-    # Ensure the directory exists
-    os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+    :param audit_logs: List of audit log entries to save.
+    """
+    # Define the directory and filename for the audit log
+    log_directory = "audit_logs"
+    log_filename = f"audit_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+    log_file_path = os.path.join(log_directory, log_filename)
 
-    # Open the log file in append mode
-    with open(log_file_path, 'a') as log_file:
-        # Get the current timestamp
-        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    # Create the log directory if it doesn't exist
+    if not os.path.exists(log_directory):
+        os.makedirs(log_directory)
 
-        # Write each log entry to the file
+    # Write the audit logs to the file
+    with open(log_file_path, 'w') as log_file:
         for log_entry in audit_logs:
-            log_file.write(f"{current_time} - {log_entry['type']} - {log_entry.get('author', 'N/A')} - "
-                           f"{log_entry.get('state', 'N/A')} - {log_entry.get('branch', 'N/A')} - "
-                           f"{log_entry.get('file_name', 'N/A')} - {log_entry.get('update_time', 'N/A')} - "
-                           f"{log_entry.get('message', 'N/A')}\n")
+            log_file.write(f"{log_entry['type']} - {log_entry}\n")
 
-    # Return a success response
-    return {"message": "Audit logs saved successfully"}
+    return {"message": "Audit logs saved successfully", "log_file_path": log_file_path}
