@@ -203,59 +203,49 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.conf import settings
+import json
 
 class GitHubWebhookView(APIView):
     """
-    Webhook endpoint to handle GitHub push and pull_request events.
+    Webhook endpoint to handle GitHub push events for file updates.
     """
 
     def post(self, request, *args, **kwargs):
-        payload = request.data
-        event_type = request.headers.get('X-GitHub-Event')
-
         # Secret token for validation
         secret_token = settings.GITHUB_WEBHOOK_SECRET.encode()
 
         # Validate secret token
-        signature = request.headers.get('X-Hub-Signature')
-        if not signature or not self.is_valid_signature(payload, signature, secret_token):
-            return Response({"error": "Invalid secret token"}, status=status.HTTP_403_FORBIDDEN)
+        signature = request.headers.get('X-Hub-Signature-256')
+        if not signature or not self.is_valid_signature(request.body, signature, secret_token):
+            return Response({"error": "Invalid secret token"},
+                            status=status.HTTP_403_FORBIDDEN)
 
-        # Event handling
-        if event_type == "push":
-            return self.handle_push_event(payload)
-        elif event_type == "pull_request":
-            return self.handle_pull_request_event(payload)
-        else:
-            return Response({"error": "Unsupported event type"}, status=status.HTTP_400_BAD_REQUEST)
+        # Parse the payload
+        try:
+            payload = json.loads(request.body)
+        except json.JSONDecodeError:
+            return Response({"error": "Invalid JSON payload"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Only process push events
+        if payload.get("event") != "push":
+            return Response({"error": "Unsupported event type"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Process the file updates (additional logic would go here)
+        file_updates = []  # Placeholder for processing files
+
+        # Success response
+        return Response({"message": "Push event processed successfully", "files": file_updates},
+                        status=status.HTTP_200_OK)
 
     @staticmethod
     def is_valid_signature(payload, signature, secret):
-        # Compute HMAC hex digest
-        hash_hex = hmac.new(secret, payload, hashlib.sha1).hexdigest()
+        # Compute HMAC hex digest using sha256
+        hash_hex = hmac.new(secret, payload, hashlib.sha256).hexdigest()
         # Compare with the GitHub signature
-        return hmac.compare_digest(f'sha1={hash_hex}', signature)
+        return hmac.compare_digest(f'sha256={hash_hex}', signature)
 
-    def handle_push_event(self, payload):
-        file_updates = []
-        commits = payload.get("commits", [])
-        for commit in commits:
-            for file_name in commit.get("modified", []):
-                file_updates.append({
-                    "file_name": file_name,
-                    "update_time": commit.get("timestamp")
-                })
-        audit_response = save_audit_log(file_updates, "commit")
-        return Response(audit_response, status=status.HTTP_200_OK)
-
-    def handle_pull_request_event(self, payload):
-        pr_metadata = {
-            "author": payload.get("pull_request", {}).get("user", {}).get("login"),
-            "state": payload.get("pull_request", {}).get("state"),
-            "branch": payload.get("pull_request", {}).get("base", {}).get("ref")
-        }
-        audit_response = save_audit_log([pr_metadata], "pull_request")
-        return Response(audit_response, status=status.HTTP_200_OK)
 
 def save_audit_log(data, event_type):
     print(data)
