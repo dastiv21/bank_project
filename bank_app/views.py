@@ -280,47 +280,62 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.conf import settings
 
+
 class GitHubWebhookView(APIView):
     """
-    Webhook endpoint to handle GitHub push and pull_request events.
+    Webhook endpoint to handle GitHub push events for file updates and pull_request events for logging PR metadata.
     """
 
     def post(self, request, *args, **kwargs):
-        payload = request.body
-        event_type = request.headers.get('X-GitHub-Event')
+        payload = json.loads(request.body)  # Use json.loads to parse the payload
+        audit_logs = []
 
         # Secret token for validation
         secret_token = settings.GITHUB_WEBHOOK_SECRET.encode()
 
         # Validate secret token
         signature = request.headers.get('X-Hub-Signature')
-        if not signature or not self.is_valid_signature(payload, signature, secret_token):
+        if not signature or not self.is_valid_signature(request.body, signature, secret_token):
             return Response({"error": "Invalid secret token"}, status=status.HTTP_403_FORBIDDEN)
 
         # Parse the JSON payload
-        payload_data = json.loads(request.body)
-        print(payload_data)
+        event_type = request.headers.get('X-GitHub-Event')
 
         if event_type == 'push':
-            # Process push events as before
-            # ...
-            pass
+            commits = payload.get("commits", [])
 
-        elif event_type == 'pull_request':
-            # Process pull_request events
-            pr_metadata = {
-                "pr_author": payload_data.get("pull_request", {}).get("user", {}).get("login"),
-                "pr_state": payload_data.get("pull_request", {}).get("state"),
-                "pr_branch": payload_data.get("pull_request", {}).get("base", {}).get("ref"),
-                "event_type": event_type
-            }
-            print(pr_metadata)
-            audit_response = save_audit_log([pr_metadata])
+            for commit in commits:
+                for file_name in commit.get("modified", []):
+                    # Use the commit timestamp as the update time
+                    audit_logs.append({
+                        "type": "commit",
+                        "file_name": file_name,
+                        "update_time": commit.get("timestamp"),
+                        "author": commit.get("author", {}).get("name", ""),
+                        "message": commit.get("message", ""),
+                    })
+
+            # save audit log for file updates
+            audit_response = save_audit_log(audit_logs)
             return Response(audit_response, status=status.HTTP_200_OK)
 
-        else:
-            # If the event is not supported, return 400
-            return Response({"error": "Unsupported event type"}, status=status.HTTP_400_BAD_REQUEST)
+        elif event_type == 'pull_request':
+            pr_info = payload.get("pull_request", {})
+
+            # Log PR metadata
+            audit_logs.append({
+                "type": "pull_request",
+                "author": pr_info.get("user", {}).get("login", ""),
+                "state": pr_info.get("state", ""),
+                "branch": pr_info.get("base", {}).get("ref", ""),
+            })
+
+            # save audit log for PRs
+            audit_response = save_audit_log(audit_logs)
+            return Response(audit_response, status=status.HTTP_200_OK)
+
+        # If the event is not supported, return 400
+        return Response({"error": "Unsupported event type"}, status=status.HTTP_400_BAD_REQUEST)
 
     @staticmethod
     def is_valid_signature(payload, signature, secret):
@@ -329,11 +344,7 @@ class GitHubWebhookView(APIView):
         # Compare with the GitHub signature
         return hmac.compare_digest(f'sha1={hash_hex}', signature)
 
-# Modify the save_audit_log function to handle different event types
-def save_audit_log(audit_data):
-    # Implement logic to save the audit data to your storage
-    # For example, you could save it to a database or a file
-    # The audit_data parameter is a list of dictionaries with event-specific information
-    # ...
-    # Return a response indicating success or failure
-    return {"status": "success", "message": "Audit log saved"}
+def save_audit_log(audit_logs):
+    # Logic to save the audit log to your storage or database
+    # For example, you might save to a file or a database table
+    return {"message": "Audit logs saved successfully", "audit_logs": audit_logs}
