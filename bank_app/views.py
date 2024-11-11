@@ -222,8 +222,9 @@ class GitHubWebhookView(APIView):
                             status=status.HTTP_403_FORBIDDEN)
 
         # Parse the payload
-        print(request.body)
+        # print(request.body)
         payload = request.data
+        print(payload)
 
         # Only process push events
         if payload.get("event") != "push":
