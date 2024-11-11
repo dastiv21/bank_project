@@ -222,7 +222,7 @@ class GitHubWebhookView(APIView):
             return Response({"error": "Invalid secret token"}, status=status.HTTP_403_FORBIDDEN)
 
         # Parse the JSON payload
-        payload_data = request.json
+        payload_data = request.data
         file_updates = []
 
         if event_type == 'push':
