@@ -25,7 +25,7 @@ SECRET_KEY = "django-insecure-k#kazn)fjo3$e9bq2%4^qj=n@y(jhj&o(6iu=ogg1p=t804@5$
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*', '45d0-98-97-78-94.ngrok-free.app']
 
 
 # Application definition
@@ -37,7 +37,11 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "bank_app"
+    "rest_framework",
+    "bank_app",
+
+'django_otp',
+    'django_otp.plugins.otp_totp',
 ]
 
 MIDDLEWARE = [
@@ -46,6 +50,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+'django_otp.middleware.OTPMiddleware',
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -123,3 +128,4 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 LOGIN_REDIRECT_URL = 'account_detail'
 LOGOUT_REDIRECT_URL = '/'
+GITHUB_WEBHOOK_SECRET= "ehjejdjkjsjkejksdfnjfjjdj2873e2bnmdb2j"

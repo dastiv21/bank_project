@@ -1,15 +1,26 @@
-from django.contrib import messages
-from django.shortcuts import render
+import hashlib
+import hmac
+import json
 
-# Create your views here.
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect
-from django.urls import reverse
+from django.http import JsonResponse
 from django.views import View
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .models import Customer, Transaction
 from .forms import TransferForm, RegistrationForm
+import qrcode
+import base64
+from io import BytesIO
+from django_otp.plugins.otp_totp.models import TOTPDevice
+from django.views import View
+from django.shortcuts import render, redirect
+from django.contrib import messages
+
+from .utls import generate_backup_codes
 
 
 class HomePageView(View):
@@ -41,9 +52,20 @@ class RegisterView(View):
             messages.success(request,
                              'Registration successful! Welcome to Bank App.')
 
-            return redirect('home')
+            # return redirect('home')
+            return redirect('setup_2fa')
         return render(request, 'bank_app/register.html', {'form': form})
 
+
+# def login_view(request):
+#     if request.method == 'POST':
+#         username = request.POST['username']
+#         password = request.POST['password']
+#         user = authenticate(request, username=username, password=password)
+#         if user is not None:
+#             login(request, user)
+#             return redirect('account_detail')
+#     return render(request, 'bank_app/login.html')
 
 def login_view(request):
     if request.method == 'POST':
@@ -51,10 +73,17 @@ def login_view(request):
         password = request.POST['password']
         user = authenticate(request, username=username, password=password)
         if user is not None:
-            login(request, user)
-            return redirect('account_detail')
+            # Check if 2FA is set up for the user
+            if user.customer.is_2fa_set:
+                # Redirect to 2FA verification page
+                return redirect('verify_2fa')
+            else:
+                # Log the user in if 2FA is not set up
+                login(request, user)
+                return redirect('account_detail')
+        else:
+            messages.error(request, 'Invalid username or password.')
     return render(request, 'bank_app/login.html')
-
 
 @login_required
 def account_detail_view(request):
@@ -73,6 +102,172 @@ def transfer_view(request):
                              'Transfer Operation completed')
 
             return redirect('account_detail')
+
     else:
         form = TransferForm(user=request.user)
     return render(request, 'bank_app/transfer.html', {'form': form})
+
+
+class TwoFactorSetupView(View):
+    def get(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return redirect('login')
+
+        # Check if the user already has a TOTP device
+        if user.totpdevice_set.exists():
+            return redirect('account_detail')
+
+        # Create a new TOTP device for the user
+        device = TOTPDevice.objects.create(user=user, name='default')
+
+        # Generate the QR code URL
+        qr_code_url = device.config_url
+
+        # Generate the QR code image
+        qr = qrcode.make(qr_code_url)
+        buffered = BytesIO()
+        qr.save(buffered, format="PNG")
+        qr_code_base64 = base64.b64encode(buffered.getvalue()).decode()
+
+        return render(request, 'bank_app/setup_2fa.html', {
+            'qr_code_base64': qr_code_base64,
+            'verification_required': True  # Flag to show the OTP form
+        })
+
+    def post(self, request):
+        user = request.user
+        otp = request.POST.get("otp")
+
+        # Retrieve the user's TOTP device
+        device = TOTPDevice.objects.filter(user=user, name='default').first()
+
+        if device and device.verify_token(otp):
+            # OTP is correct; activate the device
+            device.confirmed = True
+            device.save()
+            customer = user.customer
+            customer.is_2fa_set = True
+            customer.save()
+
+            backup_codes = generate_backup_codes()
+            request.user.customer.backup_codes = backup_codes
+            request.user.customer.save()
+            messages.success(request,
+                             "Two-factor authentication setup complete.")
+            return redirect('account_detail')
+        else:
+            # OTP is incorrect
+            messages.error(request, "Invalid OTP. Please try again.")
+            return redirect('setup_2fa')
+
+@login_required
+def verify_2fa_view(request):
+    if request.method == 'POST':
+        token = request.POST.get('token')
+        device = request.user.totpdevice_set.first()
+
+        if device and device.verify_token(token):
+            # Token is correct; log the user in
+            login(request, request.user)
+            messages.success(request, 'Two-factor authentication successful.')
+            return redirect('home')
+        else:
+            # Token is incorrect
+            messages.error(request, 'Invalid token. Please try again.')
+            return redirect('verify_2fa')
+    return render(request, 'bank_app/verify_2fa.html')
+
+@login_required
+def verify_backup_code_view(request):
+    if request.method == 'POST':
+        code = request.POST.get('code')
+        print(code)
+        print(request.user.customer.backup_codes)
+        if code in request.user.customer.backup_codes:
+            # Mark the code as used and save
+            request.user.customer.backup_codes.remove(code)
+            request.user.customer.save()
+            login(request, request.user)
+            messages.success(request, 'Backup code verified.')
+            return redirect('home')
+        else:
+            messages.error(request, 'Invalid backup code.')
+            return redirect('verify_backup_code')
+
+    return render(request, 'bank_app/verify_backup_code.html')
+
+
+import hmac
+import hashlib
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.conf import settings
+
+class GitHubWebhookView(APIView):
+    """
+    Webhook endpoint to handle GitHub push and pull_request events.
+    """
+
+    def post(self, request, *args, **kwargs):
+        payload = request.body  # Use request.body to get raw payload
+        event_type = request.headers.get('X-GitHub-Event')
+
+        # Secret token for validation
+        secret_token = settings.GITHUB_WEBHOOK_SECRET.encode()
+
+        # Validate secret token
+        signature = request.headers.get('X-Hub-Signature')
+        if not signature or not self.is_valid_signature(payload, signature, secret_token):
+            return Response({"error": "Invalid secret token"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Parse the JSON payload
+        payload_data = json.loads(request.body)
+        file_updates = []
+
+        if event_type == 'push':
+            commits = payload_data.get("commits", [])
+
+            for commit in commits:
+                for file_name in commit.get("modified", []):
+                    # Use the commit timestamp as the update time
+                    file_updates.append({
+                        "file_name": file_name,
+                        "update_time": commit.get("timestamp")
+                    })
+
+            # save audit log for file updates
+            audit_response = save_audit_log(file_updates)
+            return Response(audit_response, status=status.HTTP_200_OK)
+
+        elif event_type == 'pull_request':
+            # Process pull_request events
+            pull_requests = payload_data.get("pull_request", {})
+            pr_metadata = {
+                "author": pull_requests.get("user", {}).get("login", ""),
+                "state": pull_requests.get("state", ""),
+                "branch": pull_requests.get("base", {}).get("ref", "")
+            }
+            # Save pull_request metadata to the audit log
+            audit_response = save_audit_log([pr_metadata], event_type)
+            return Response(audit_response, status=status.HTTP_200_OK)
+
+        else:
+            # If the event is not supported, return 400
+            return Response({"error": "Unsupported event type"}, status=status.HTTP_400_BAD_REQUEST)
+
+    @staticmethod
+    def is_valid_signature(payload, signature, secret):
+        # Compute HMAC hex digest
+        hash_hex = hmac.new(secret, payload, hashlib.sha1).hexdigest()
+        # Compare with the GitHub signature
+        return hmac.compare_digest(f'sha1={hash_hex}', signature)
+
+def save_audit_log(data, event_type="push"):
+    print("Save audit called")
+    # Modify the save_audit_log function to accept event_type
+    # and distinguish between commits and PRs in the audit logs
+    # Save the data to the database or log file with the event_type
+    # ...
+    pass

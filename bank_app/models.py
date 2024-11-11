@@ -2,6 +2,7 @@ import random
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator
 from django.db import models
+from django_otp.plugins.otp_totp.models import TOTPDevice
 
 
 def generate_account_number():
@@ -18,6 +19,11 @@ class Customer(models.Model):
                                   default=0.00)
     account_number = models.CharField(max_length=10, unique=True,
                                       editable=False)
+    is_2fa_set = models.BooleanField(default=False)
+    totp_device = models.OneToOneField(TOTPDevice, on_delete=models.CASCADE,
+                                       null=True, blank=True, editable=False)
+    phone_number = models.CharField(max_length=15, blank=True, null=True)
+    backup_codes = models.JSONField(default=list, blank=True)
 
     def save(self, *args, **kwargs):
         if not self.account_number:
