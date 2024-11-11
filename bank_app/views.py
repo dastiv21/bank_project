@@ -204,35 +204,28 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.conf import settings
 
-
 class GitHubWebhookView(APIView):
     """
-    Webhook endpoint to handle GitHub push events for file updates.
+    Webhook endpoint to handle GitHub push and pull_request events.
     """
 
     def post(self, request, *args, **kwargs):
         payload = request.body  # Use request.body to get raw payload
-        file_updates = []
+        event_type = request.headers.get('X-GitHub-Event')
 
         # Secret token for validation
         secret_token = settings.GITHUB_WEBHOOK_SECRET.encode()
 
         # Validate secret token
         signature = request.headers.get('X-Hub-Signature')
-        if not signature or not self.is_valid_signature(payload, signature,
-                                                        secret_token):
-            return Response({"error": "Invalid secret token"},
-                            status=status.HTTP_403_FORBIDDEN)
+        if not signature or not self.is_valid_signature(payload, signature, secret_token):
+            return Response({"error": "Invalid secret token"}, status=status.HTTP_403_FORBIDDEN)
 
         # Parse the JSON payload
-        payload_data = request.data
-
-        # Only process push events
-        print(payload_data)
-        event_type = request.headers.get('X-GitHub-Event')
+        payload_data = request.json
+        file_updates = []
 
         if event_type == 'push':
-        # if payload_data.get("event") == "push":
             commits = payload_data.get("commits", [])
 
             for commit in commits:
@@ -247,9 +240,21 @@ class GitHubWebhookView(APIView):
             audit_response = save_audit_log(file_updates)
             return Response(audit_response, status=status.HTTP_200_OK)
 
-        # If the event is not a push event, return 400
-        return Response({"error": "Unsupported event type"},
-                        status=status.HTTP_400_BAD_REQUEST)
+        elif event_type == 'pull_request':
+            # Process pull_request events
+            pull_requests = payload_data.get("pull_request", {})
+            pr_metadata = {
+                "author": pull_requests.get("user", {}).get("login", ""),
+                "state": pull_requests.get("state", ""),
+                "branch": pull_requests.get("base", {}).get("ref", "")
+            }
+            # Save pull_request metadata to the audit log
+            audit_response = save_audit_log([pr_metadata], event_type)
+            return Response(audit_response, status=status.HTTP_200_OK)
+
+        else:
+            # If the event is not supported, return 400
+            return Response({"error": "Unsupported event type"}, status=status.HTTP_400_BAD_REQUEST)
 
     @staticmethod
     def is_valid_signature(payload, signature, secret):
@@ -258,7 +263,10 @@ class GitHubWebhookView(APIView):
         # Compare with the GitHub signature
         return hmac.compare_digest(f'sha1={hash_hex}', signature)
 
-
-def save_audit_log(data,):
-    print(data)
-    # return {"status": "success", "event_type": event_type, "data": data}
+def save_audit_log(data, event_type="push"):
+    print("Save audit called")
+    # Modify the save_audit_log function to accept event_type
+    # and distinguish between commits and PRs in the audit logs
+    # Save the data to the database or log file with the event_type
+    # ...
+    pass
