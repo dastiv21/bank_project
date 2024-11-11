@@ -1,0 +1,8 @@
+<!-- bank_app/verify_backup_code.html -->
+<h2>Backup Code Verification</h2>
+<form method="post">
+    {% csrf_token %}
+    <label for="code">Backup Code:</label>
+    <input type="text" id="code" name="code" required>
+    <button type="submit">Verify</button>
+</form>

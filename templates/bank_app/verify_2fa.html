@@ -1,0 +1,16 @@
+{% extends 'bank_app/base.html' %}
+
+{% block content %}
+    <div class="container">
+        <!-- bank_app/verify_2fa_token.html -->
+        <h2>Verify Two-Factor Authentication Token</h2>
+        <form method="post">
+            {% csrf_token %}
+            <label for="token">Token:</label>
+            <input type="text" id="token" name="token">
+            <button type="submit">Verify</button>
+        </form>
+    </div>
+
+{% endblock %}
+

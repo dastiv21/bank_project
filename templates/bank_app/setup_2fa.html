@@ -1,0 +1,31 @@
+{% extends 'bank_app/base.html' %}
+
+{% block content %}
+    <div class="container">
+        <h1>Two-Factor Authentication Setup</h1>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    {% if verification_required %}
+        <p>Scan the QR code below with your authentication app:</p>
+        <img src="data:image/png;base64,{{ qr_code_base64 }}" alt="QR Code">
+    {% endif %}
+
+    <h2>Enter the OTP from your authenticator app</h2>
+    <form method="post" action="{% url 'setup_2fa' %}">
+        {% csrf_token %}
+        <label for="otp">OTP:</label>
+        <input type="text" id="otp" name="otp" required>
+        <button type="submit">Verify OTP</button>
+    </form>
+    </div>
+
+{% endblock %}
+
+
