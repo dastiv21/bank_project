@@ -218,7 +218,7 @@ class GitHubWebhookView(APIView):
 
         # Validate secret token
         signature = request.headers.get('X-Hub-Signature')
-        if not signature or not self.is_valid_signature(request.body, signature, secret_token):
+        if not signature or not self.is_valid_signature(payload, signature, secret_token):
             return Response({"error": "Invalid secret token"}, status=status.HTTP_403_FORBIDDEN)
 
         # Event handling
