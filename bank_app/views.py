@@ -203,7 +203,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.conf import settings
-import json
+
 
 class GitHubWebhookView(APIView):
     """
@@ -211,41 +211,50 @@ class GitHubWebhookView(APIView):
     """
 
     def post(self, request, *args, **kwargs):
+        payload = request.body  # Use request.body to get raw payload
+        file_updates = []
+
         # Secret token for validation
-        print("here")
         secret_token = settings.GITHUB_WEBHOOK_SECRET.encode()
 
         # Validate secret token
-        signature = request.headers.get('X-Hub-Signature-256')
-        if not signature or not self.is_valid_signature(request.body, signature, secret_token):
+        signature = request.headers.get('X-Hub-Signature')
+        if not signature or not self.is_valid_signature(payload, signature,
+                                                        secret_token):
             return Response({"error": "Invalid secret token"},
                             status=status.HTTP_403_FORBIDDEN)
 
-        # Parse the payload
-        # print(request.body)
-        payload = request.data
-        print(payload)
+        # Parse the JSON payload
+        payload_data = request.data
 
         # Only process push events
-        if payload.get("event") != "push":
-            return Response({"error": "Unsupported event type"},
-                            status=status.HTTP_400_BAD_REQUEST)
+        if payload_data.get("event") == "push":
+            commits = payload_data.get("commits", [])
 
-        # Process the file updates (additional logic would go here)
-        file_updates = []  # Placeholder for processing files
+            for commit in commits:
+                for file_name in commit.get("modified", []):
+                    # Use the commit timestamp as the update time
+                    file_updates.append({
+                        "file_name": file_name,
+                        "update_time": commit.get("timestamp")
+                    })
 
-        # Success response
-        return Response({"message": "Push event processed successfully", "files": file_updates},
-                        status=status.HTTP_200_OK)
+            # save audit log for file updates
+            audit_response = save_audit_log(file_updates)
+            return Response(audit_response, status=status.HTTP_200_OK)
+
+        # If the event is not a push event, return 400
+        return Response({"error": "Unsupported event type"},
+                        status=status.HTTP_400_BAD_REQUEST)
 
     @staticmethod
     def is_valid_signature(payload, signature, secret):
-        # Compute HMAC hex digest using sha256
-        hash_hex = hmac.new(secret, payload, hashlib.sha256).hexdigest()
+        # Compute HMAC hex digest
+        hash_hex = hmac.new(secret, payload, hashlib.sha1).hexdigest()
         # Compare with the GitHub signature
-        return hmac.compare_digest(f'sha256={hash_hex}', signature)
+        return hmac.compare_digest(f'sha1={hash_hex}', signature)
 
 
-def save_audit_log(data, event_type):
+def save_audit_log(data,):
     print(data)
-    return {"status": "success", "event_type": event_type, "data": data}
+    # return {"status": "success", "event_type": event_type, "data": data}
