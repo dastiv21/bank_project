@@ -1,0 +1,52 @@
+# Project Name
+
+Welcome to the **Patty Project** repository! This README provides everything you need to get started, including installation steps, usage instructions, and contribution guidelines.
+
+## Table of Contents
+- [Installation Guide](#installation-guide)
+- [Usage Instructions](#usage-instructions)
+- [Feedback and Contribution Guidelines](#feedback-and-contribution-guidelines)
+- [License](#license)
+
+---
+
+## Installation Guide
+
+Follow these steps to set up the project on your machine.
+
+### Prerequisites
+- **Python 3.8+**
+- **Git**
+- **Virtual Environment** (recommended)
+
+### Steps
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/yourusername/patty_pro.git
+   cd patty_pro
+   ```
+
+
+## Feedback and Contribution Guidelines
+
+We value your contributions! Here’s how you can help improve this project.
+
+### How to Contribute
+
+1. **Fork the repository**: Click on the "Fork" button at the top right of this repository page.
+
+2. **Create a new branch for your feature or bug fix**:
+   ```bash
+   git checkout -b feature-or-bugfix-name
+   git commit -m "Description of changes"
+   git push origin feature-or-bugfix-name
+   ```
+
+## License
+
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+
+### Additional Information
+
+By using this software, you agree to comply with the terms and conditions specified in the license. For more detailed information on the terms of the MIT License, please refer to the [MIT License documentation](https://opensource.org/licenses/MIT).
